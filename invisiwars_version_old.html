@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Invisiwars - PC & Mobil Ortak Mod</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; overflow: hidden; touch-action: none; }
+        .ui-container { background: #333; padding: 10px; border-radius: 10px; margin: 5px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; width: 95%; font-size: 14px; }
+        canvas { background: #000; border: 2px solid #444; max-width: 100vw; max-height: 70vh; touch-action: none; }
+        input { padding: 5px; border-radius: 5px; border: none; width: 100px; }
+        button { padding: 5px 10px; border-radius: 5px; background: #28a745; color: white; border: none; cursor: pointer; }
+        #stats { display: flex; justify-content: space-between; width: 90%; padding: 5px; font-weight: bold; }
+        .cyan { color: #00fbff; } .red { color: #ff4444; }
+    </style>
+</head>
+<body>
+
+    <div class="ui-container">
+        <div>ID: <span id="my-id" style="color:#00ffcc; font-size: 12px;">...</span></div>
+        <input type="text" id="peer-id" placeholder="Arkadaş ID">
+        <button onclick="connectToPeer()">Bağlan</button>
+        <div id="status" style="color:#ffc107">ID Bekleniyor...</div>
+    </div>
+
+    <div id="stats">
+        <div class="cyan">Sen: <span id="my-hp">3</span> HP</div>
+        <div class="red">Rakip: <span id="peer-hp">3</span> HP</div>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const myIdDisp = document.getElementById('my-id');
+        const statusDisp = document.getElementById('status');
+
+        let peer = new Peer();
+        let conn;
+        let myData = { x: 100, y: 100, isMoving: false, isFiring: false, hp: 3, bullets: [] };
+        let peerData = { x: 700, y: 400, isMoving: false, isFiring: false, hp: 3, bullets: [] };
+        let myBullets = [];
+        let keys = {};
+
+        // Joystick Ayarları
+        let joystick = { active: false, startX: 0, startY: 0, curX: 0, curY: 0, moveX: 0, moveY: 0 };
+
+        // Engeller ve Çalılar
+        const walls = [{x: 375, y: 175, w: 50, h: 150}, {x: 100, y: 350, w: 150, h: 20}, {x: 550, y: 130, w: 150, h: 20}];
+        const bushes = [{x: 150, y: 150, w: 100, h: 100}, {x: 550, y: 250, w: 120, h: 120}];
+
+        peer.on('open', id => { myIdDisp.innerText = id; statusDisp.innerText = "ID Hazır!"; });
+        peer.on('connection', c => { conn = c; setupConn(); });
+
+        function connectToPeer() {
+            conn = peer.connect(document.getElementById('peer-id').value);
+            setupConn();
+        }
+
+        function setupConn() {
+            conn.on('open', () => {
+                statusDisp.innerText = "BAĞLANDI!";
+                conn.on('data', data => {
+                    if(data.type === "hit") { myData.hp--; if(myData.hp <= 0) { myData.x=50; myData.y=50; myData.hp=3; } }
+                    else { peerData = data; }
+                });
+            });
+        }
+
+        // PC Kontrolleri
+        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+        canvas.addEventListener('mousedown', (e) => { fire(getMousePos(e).x, getMousePos(e).y); });
+
+        // Mobil Kontrolleri
+        canvas.addEventListener('touchstart', e => {
+            for(let t of e.changedTouches) {
+                const pos = getTouchPos(t);
+                if(pos.x < canvas.width / 2) { // Sol taraf: Joystick
+                    joystick.active = true;
+                    joystick.startX = pos.x; joystick.startY = pos.y;
+                    joystick.curX = pos.x; joystick.curY = pos.y;
+                } else { // Sağ taraf: Ateş
+                    fire(pos.x, pos.y);
+                }
+            }
+        });
+
+        canvas.addEventListener('touchmove', e => {
+            if(!joystick.active) return;
+            for(let t of e.changedTouches) {
+                const pos = getTouchPos(t);
+                if(pos.x < canvas.width / 2) {
+                    joystick.curX = pos.x; joystick.curY = pos.y;
+                    let dx = joystick.curX - joystick.startX;
+                    let dy = joystick.curY - joystick.startY;
+                    let dist = Math.hypot(dx, dy);
+                    let maxDist = 40;
+                    if(dist > maxDist) { dx *= maxDist/dist; dy *= maxDist/dist; }
+                    joystick.moveX = dx / maxDist;
+                    joystick.moveY = dy / maxDist;
+                }
+            }
+        });
+
+        canvas.addEventListener('touchend', () => { joystick.active = false; joystick.moveX = 0; joystick.moveY = 0; });
+
+        function getMousePos(e) {
+            const r = canvas.getBoundingClientRect();
+            return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
+        }
+        function getTouchPos(t) {
+            const r = canvas.getBoundingClientRect();
+            return { x: (t.clientX - r.left) * (canvas.width / r.width), y: (t.clientY - r.top) * (canvas.height / r.height) };
+        }
+
+        function fire(tx, ty) {
+            if(!conn || !conn.open) return;
+            const angle = Math.atan2(ty - myData.y, tx - myData.x);
+            myBullets.push({ x: myData.x, y: myData.y, vx: Math.cos(angle) * 8, vy: Math.sin(angle) * 8, life: 60 });
+            myData.isFiring = true;
+            setTimeout(() => myData.isFiring = false, 200);
+        }
+
+        function update() {
+            let dx = 0, dy = 0;
+            // PC Hareket
+            if(keys['w'] || keys['arrowup']) dy -= 1;
+            if(keys['s'] || keys['arrowdown']) dy += 1;
+            if(keys['a'] || keys['arrowleft']) dx -= 1;
+            if(keys['d'] || keys['arrowright']) dx += 1;
+            
+            // Mobil Hareket
+            if(joystick.active) { dx = joystick.moveX; dy = joystick.moveY; }
+
+            const speed = 4;
+            if(!checkWall(myData.x + dx*speed, myData.y + dy*speed)) {
+                myData.x += dx * speed;
+                myData.y += dy * speed;
+            }
+            myData.isMoving = (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1);
+
+            myBullets.forEach((b, i) => {
+                b.x += b.vx; b.y += b.vy; b.life--;
+                if(checkWall(b.x, b.y)) myBullets.splice(i, 1);
+                else if(Math.hypot(b.x - peerData.x, b.y - peerData.y) < 20) {
+                    conn.send({type: "hit"}); myBullets.splice(i, 1);
+                } else if(b.life <= 0) myBullets.splice(i, 1);
+            });
+
+            document.getElementById('my-hp').innerText = myData.hp;
+            document.getElementById('peer-hp').innerText = peerData.hp;
+            if(conn && conn.open) conn.send({...myData, bullets: myBullets});
+        }
+
+        function checkWall(nx, ny) {
+            if(nx<15 || nx>785 || ny<15 || ny>485) return true;
+            for(let w of walls) if(nx+15>w.x && nx-15<w.x+w.w && ny+15>w.y && ny-15<w.y+w.h) return true;
+            return false;
+        }
+
+        function draw() {
+            ctx.fillStyle = "black"; ctx.fillRect(0,0,800,500);
+            
+            // Çalılar
+            ctx.fillStyle = "rgba(0, 100, 0, 0.5)";
+            bushes.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+            // Duvarlar
+            ctx.fillStyle = "#555";
+            walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
+
+            // Mermiler
+            ctx.fillStyle = "#0f0"; myBullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 7); ctx.fill(); });
+            ctx.fillStyle = "#f00"; if(peerData.bullets) peerData.bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 7); ctx.fill(); });
+
+            // Kendi Karakterin
+            ctx.globalAlpha = 0.5; ctx.fillStyle = "cyan";
+            ctx.beginPath(); ctx.arc(myData.x, myData.y, 15, 0, 7); ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // Rakip (Görünmezlik Mantığı)
+            let inBush = false;
+            for(let b of bushes) if(peerData.x > b.x && peerData.x < b.x+b.w && peerData.y > b.y && peerData.y < b.y+b.h) inBush = true;
+            
+            if(peerData.isFiring) ctx.globalAlpha = 1.0;
+            else if(inBush) ctx.globalAlpha = 0;
+            else if(peerData.isMoving) ctx.globalAlpha = 0.08;
+            else ctx.globalAlpha = 0;
+
+            ctx.fillStyle = "red"; ctx.beginPath(); ctx.arc(peerData.x, peerData.y, 15, 0, 7); ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // Joystick Görseli
+            if(joystick.active) {
+                ctx.strokeStyle = "white"; ctx.beginPath(); ctx.arc(joystick.startX, joystick.startY, 40, 0, 7); ctx.stroke();
+                ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(joystick.curX, joystick.curY, 20, 0, 7); ctx.fill();
+            }
+
+            update(); requestAnimationFrame(draw);
+        }
+        draw();
+    </script>
+</body>
+</html>

@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Invisiwars - Game Over Screen</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background: #121212; color: white;
+            font-family: sans-serif;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-start;
+            overflow: hidden; touch-action: none;
+        }
+        .ui-container {
+            background: #252525; padding: 8px 15px; border-radius: 8px;
+            margin: 4px 0; display: flex; gap: 10px; align-items: center;
+            justify-content: center; width: 98%; max-width: 1200px;
+            font-size: 14px; z-index: 10;
+        }
+        #stats {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 98%; max-width: 1200px; padding: 2px 10px;
+            font-weight: bold; font-size: 15px; z-index: 10;
+        }
+        .cyan { color: #00fbff; } .red { color: #ff4444; } .yellow { color: #ffcc00; }
+        input {
+            padding: 6px 10px; border-radius: 4px; border: 1px solid #444;
+            background: #111; color: #fff; width: 140px; outline: none;
+        }
+        button {
+            padding: 6px 14px; border-radius: 4px; background: #28a745;
+            color: white; border: none; cursor: pointer; font-weight: bold;
+        }
+        button:hover { background: #218838; }
+        .reload-btn {
+            background: #d39e00; color: black; font-size: 12px; margin-left: 5px;
+        }
+        .canvas-wrapper {
+            flex: 1; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            padding: 2px; overflow: hidden; position: relative;
+        }
+        canvas {
+            background: #0d0d0d; border: 2px solid #444;
+            touch-action: none; object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ui-container">
+        <input type="text" id="room-id" placeholder="Oda Adı">
+        <button onclick="joinRoom()">Odaya Katıl</button>
+        <div id="status" style="color:#ffc107; font-weight: bold;">Oda Adı Girin...</div>
+    </div>
+
+    <div id="stats">
+        <div class="cyan">Sen: <span id="my-hp">3</span> HP | <span id="ammo-status">5/5 Mermi</span> <button class="reload-btn" onclick="manualReload()">R</button></div>
+        <div class="yellow">Skor: <span id="my-score">0</span> - <span id="peer-score">0</span> (Hedef: 15)</div>
+        <div class="red">Rakip: <span id="peer-hp">3</span> HP</div>
+    </div>
+
+    <div class="canvas-wrapper" id="wrapper">
+        <canvas id="gameCanvas" width="1200" height="800"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusDisp = document.getElementById('status');
+        const roomInput = document.getElementById('room-id');
+        const wrapper = document.getElementById('wrapper');
+        const ammoDisp = document.getElementById('ammo-status');
+
+        const VIRTUAL_WIDTH = 1200;
+        const PLAY_AREA_HEIGHT = 700;
+        const TOTAL_HEIGHT = 800;
+
+        const PEER_CONFIG = {
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
+                ]
+            }
+        };
+
+        const POSITIONS = {
+            HOST: { x: 60, y: 60 },
+            CLIENT: { x: 1140, y: 640 }
+        };
+
+        let isHost = false;
+        let peer = null;
+        let conn = null;
+
+        const MAX_AMMO = 5;
+        let myAmmo = MAX_AMMO;
+        let isReloading = false;
+        let myScore = 0;
+        let peerScore = 0;
+        let speed = 2.5;
+
+        // Oyun Bitti Kontrolü
+        let gameOver = false;
+        let gameResultText = "";
+        let gameResultColor = "#28a745";
+
+        let radarTimer = 0;
+        let activePowerUp = null;
+        let powerUpRespawnTimer = null;
+
+        let particles = [];
+        let floatTexts = [];
+        let monsters = [];
+
+        let myData = { x: POSITIONS.HOST.x, y: POSITIONS.HOST.y, isMoving: false, isFiring: false, hp: 3, bullets: [] };
+        let peerData = { x: POSITIONS.CLIENT.x, y: POSITIONS.CLIENT.y, isMoving: false, isFiring: false, hp: 3, bullets: [] };
+        let myBullets = [];
+        let keys = {};
+
+        const JOYSTICK_BASE = { x: 150, y: 750, radius: 40 };
+        let joystick = { active: false, touchId: null, curX: JOYSTICK_BASE.x, curY: JOYSTICK_BASE.y, moveX: 0, moveY: 0 };
+
+        const walls = [
+            {x: 575, y: 250, w: 50, h: 200}, {x: 200, y: 150, w: 200, h: 30},
+            {x: 800, y: 520, w: 200, h: 30}, {x: 200, y: 480, w: 30, h: 150},
+            {x: 970, y: 80, w: 30, h: 150}
+        ];
+
+        const bushes = [
+            {x: 100, y: 230, w: 140, h: 140}, {x: 960, y: 330, w: 140, h: 140},
+            {x: 500, y: 80, w: 200, h: 100}, {x: 500, y: 520, w: 200, h: 100}
+        ];
+
+        const powerUpSpots = [
+            {x: 600, y: 150}, {x: 600, y: 550},
+            {x: 350, y: 350}, {x: 850, y: 350}
+        ];
+
+        function resizeCanvas() {
+            const scale = Math.min(wrapper.clientWidth / VIRTUAL_WIDTH, wrapper.clientHeight / TOTAL_HEIGHT);
+            canvas.style.width = (VIRTUAL_WIDTH * scale) + "px";
+            canvas.style.height = (TOTAL_HEIGHT * scale) + "px";
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function setSpawnPosition(hostRole) {
+            isHost = hostRole;
+            if(isHost) {
+                myData.x = POSITIONS.HOST.x; myData.y = POSITIONS.HOST.y;
+                peerData.x = POSITIONS.CLIENT.x; peerData.y = POSITIONS.CLIENT.y;
+            } else {
+                myData.x = POSITIONS.CLIENT.x; myData.y = POSITIONS.CLIENT.y;
+                peerData.x = POSITIONS.HOST.x; peerData.y = POSITIONS.HOST.y;
+            }
+        }
+
+        function joinRoom() {
+            const rawRoom = roomInput.value.trim().toLowerCase();
+            if(!rawRoom) { alert("Lütfen bir oda adı girin!"); return; }
+
+            // Oyun Sonu Durumunu Sıfırla
+            gameOver = false;
+            gameResultText = "";
+            myScore = 0;
+            peerScore = 0;
+            myData.hp = 3;
+            myBullets = [];
+            monsters = [];
+            activePowerUp = null;
+
+            const targetRoomId = "invisiwars-v13-" + rawRoom;
+            statusDisp.innerText = "Sunucuya Bağlanılıyor...";
+            statusDisp.style.color = "#ffc107";
+
+            if (peer) peer.destroy();
+
+            peer = new Peer(PEER_CONFIG);
+
+            peer.on('open', () => {
+                statusDisp.innerText = "Oda Aranıyor...";
+                let c = peer.connect(targetRoomId, { reliable: true });
+                let isConnected = false;
+
+                c.on('open', () => {
+                    isConnected = true;
+                    conn = c;
+                    setSpawnPosition(false);
+                    bindConnectionEvents();
+                });
+
+                setTimeout(() => {
+                    if (!isConnected) {
+                        c.close();
+                        peer.destroy();
+                        createRoomAsHost(targetRoomId);
+                    }
+                }, 1800);
+            });
+        }
+
+        function createRoomAsHost(roomId) {
+            peer = new Peer(roomId, PEER_CONFIG);
+
+            peer.on('open', () => {
+                setSpawnPosition(true);
+                statusDisp.innerText = "Oda Kuruldu! İkinci Oyuncu Bekleniyor...";
+                statusDisp.style.color = "#00fbff";
+            });
+
+            peer.on('connection', c => {
+                conn = c;
+                bindConnectionEvents();
+            });
+
+            peer.on('error', err => {
+                if (err.type === 'unavailable-id') {
+                    statusDisp.innerText = "Tekrar bağlanılıyor...";
+                    setTimeout(joinRoom, 1000);
+                }
+            });
+        }
+
+        function bindConnectionEvents() {
+            statusDisp.innerText = "BAĞLANDI! OYUN BAŞLADI";
+            statusDisp.style.color = "#28a745";
+
+            if(isHost) {
+                setTimeout(() => {
+                    spawnPowerUp();
+                    initMonsters();
+                }, 500);
+            }
+
+            conn.on('data', data => {
+                if(gameOver) return; // Oyun bittiyse gelen verileri işleme
+
+                if(data.type === "take_damage") { 
+                    myData.hp -= data.amount || 1; 
+                    addExplosion(myData.x, myData.y, "#ff0000", 15);
+                    if(myData.hp <= 0) { 
+                        peerScore++;
+                        conn.send({ type: "score_update", myScore, peerScore });
+                        if(!checkMatchEnd()) {
+                            resetRound();
+                        }
+                    } 
+                }
+                else if(data.type === "score_update") {
+                    myScore = data.peerScore;
+                    peerScore = data.myScore;
+                    checkMatchEnd();
+                }
+                else if(data.type === "powerup_spawn") activePowerUp = data.powerup;
+                else if(data.type === "powerup_take") {
+                    activePowerUp = null;
+                    if(isHost) schedulePowerUpSpawn();
+                }
+                else if(data.type === "monsters_update") monsters = data.monsters;
+                else if(data.type === "kill_monster") {
+                    monsters = monsters.filter(m => m.id !== data.monsterId);
+                    addExplosion(data.x, data.y, "#ff9900", 20);
+                }
+                else if(data.type === "fx_explosion") addExplosion(data.x, data.y, data.color, data.count);
+                else { peerData = data; }
+            });
+
+            conn.on('close', () => {
+                statusDisp.innerText = "Bağlantı Koptu!";
+                statusDisp.style.color = "#ff4444";
+            });
+        }
+
+        function initMonsters() {
+            monsters = [
+                { id: 101, x: 400, y: 350, vx: 0.8, vy: 0.6, pulse: 0 },
+                { id: 102, x: 800, y: 350, vx: -0.8, vy: -0.6, pulse: 0 }
+            ];
+        }
+
+        function checkMatchEnd() {
+            if(myScore >= 15 || peerScore >= 15) {
+                gameOver = true;
+                if(myScore >= 15) {
+                    gameResultText = "TEBRİKLER, KAZANDIN!";
+                    gameResultColor = "#00ff66";
+                } else {
+                    gameResultText = "KAYBETTİN!";
+                    gameResultColor = "#ff4444";
+                }
+                statusDisp.innerText = "MAÇ BİTTİ!";
+                statusDisp.style.color = gameResultColor;
+                return true;
+            }
+            return false;
+        }
+
+        function resetRound() {
+            myData.hp = 3;
+            myAmmo = MAX_AMMO;
+            isReloading = false;
+            radarTimer = 0;
+            ammoDisp.innerText = `${myAmmo}/${MAX_AMMO} Mermi`;
+            setSpawnPosition(isHost);
+            if(isHost) {
+                spawnPowerUp();
+                initMonsters();
+            }
+        }
+
+        function schedulePowerUpSpawn() {
+            if(powerUpRespawnTimer) clearTimeout(powerUpRespawnTimer);
+            powerUpRespawnTimer = setTimeout(() => {
+                if(!gameOver) spawnPowerUp();
+            }, 8000);
+        }
+
+        function spawnPowerUp() {
+            if(!isHost || gameOver) return;
+            const spot = powerUpSpots[Math.floor(Math.random() * powerUpSpots.length)];
+            const chosenType = Math.random() > 0.5 ? 'heal' : 'radar';
+            activePowerUp = { x: spot.x, y: spot.y, type: chosenType, w: 26, h: 26 };
+            if(conn && conn.open) conn.send({ type: "powerup_spawn", powerup: activePowerUp });
+        }
+
+        function manualReload() {
+            if(isReloading || myAmmo === MAX_AMMO || gameOver) return;
+            isReloading = true;
+            ammoDisp.innerText = "Dolduruluyor...";
+            setTimeout(() => {
+                if(!gameOver) {
+                    myAmmo = MAX_AMMO;
+                    isReloading = false;
+                    ammoDisp.innerText = `${myAmmo}/${MAX_AMMO} Mermi`;
+                }
+            }, 1500);
+        }
+
+        function addExplosion(x, y, color = "#ff9900", count = 15) {
+            for(let i=0; i<count; i++) {
+                let angle = Math.random() * Math.PI * 2;
+                let spd = 1 + Math.random() * 4;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * spd,
+                    vy: Math.sin(angle) * spd,
+                    color,
+                    life: 25 + Math.random() * 15,
+                    maxLife: 40
+                });
+            }
+        }
+
+        function addFloatText(text, x, y, color = "#00ff66") {
+            floatTexts.push({ text, x, y, vy: -1, life: 40, color });
+        }
+
+        window.addEventListener('keydown', e => {
+            if(gameOver) return;
+            keys[e.key.toLowerCase()] = true;
+            if(e.key.toLowerCase() === 'r') manualReload();
+        });
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+        canvas.addEventListener('mousedown', (e) => {
+            if(gameOver) return;
+            const pos = getMousePos(e);
+            if(pos.y < PLAY_AREA_HEIGHT) fire(pos.x, pos.y);
+        });
+
+        canvas.addEventListener('touchstart', e => {
+            if(gameOver) return;
+            e.preventDefault();
+            for(let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const pos = getTouchPos(t);
+                if(pos.y >= PLAY_AREA_HEIGHT) {
+                    joystick.active = true;
+                    joystick.touchId = t.identifier;
+                    updateJoystick(pos.x, pos.y);
+                } else {
+                    fire(pos.x, pos.y);
+                }
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', e => {
+            if(gameOver) return;
+            e.preventDefault();
+            if(!joystick.active) return;
+            for(let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if(t.identifier === joystick.touchId) {
+                    const pos = getTouchPos(t);
+                    updateJoystick(pos.x, pos.y);
+                }
+            }
+        }, { passive: false });
+
+        function updateJoystick(px, py) {
+            let dx = px - JOYSTICK_BASE.x;
+            let dy = py - JOYSTICK_BASE.y;
+            let dist = Math.hypot(dx, dy);
+            let maxDist = JOYSTICK_BASE.radius;
+            if(dist > maxDist) { dx *= maxDist / dist; dy *= maxDist / dist; }
+            joystick.curX = JOYSTICK_BASE.x + dx;
+            joystick.curY = JOYSTICK_BASE.y + dy;
+            joystick.moveX = dx / maxDist;
+            joystick.moveY = dy / maxDist;
+        }
+
+        function handleTouchEnd(e) {
+            for(let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if(joystick.active && t.identifier === joystick.touchId) {
+                    joystick.active = false;
+                    joystick.touchId = null;
+                    joystick.curX = JOYSTICK_BASE.x;
+                    joystick.curY = JOYSTICK_BASE.y;
+                    joystick.moveX = 0; joystick.moveY = 0;
+                }
+            }
+        }
+        canvas.addEventListener('touchend', handleTouchEnd);
+        canvas.addEventListener('touchcancel', handleTouchEnd);
+
+        function getMousePos(e) {
+            const r = canvas.getBoundingClientRect();
+            return { x: (e.clientX - r.left) * (VIRTUAL_WIDTH / r.width), y: (e.clientY - r.top) * (TOTAL_HEIGHT / r.height) };
+        }
+
+        function getTouchPos(t) {
+            const r = canvas.getBoundingClientRect();
+            return { x: (t.clientX - r.left) * (VIRTUAL_WIDTH / r.width), y: (t.clientY - r.top) * (TOTAL_HEIGHT / r.height) };
+        }
+
+        function fire(tx, ty) {
+            if(gameOver || !conn || !conn.open || isReloading) return;
+            if(myAmmo <= 0) { manualReload(); return; }
+
+            myAmmo--;
+            ammoDisp.innerText = `${myAmmo}/${MAX_AMMO} Mermi`;
+
+            const angle = Math.atan2(ty - myData.y, tx - myData.x);
+            myBullets.push({ x: myData.x, y: myData.y, vx: Math.cos(angle) * 8, vy: Math.sin(angle) * 8, life: 90 });
+            myData.isFiring = true;
+            setTimeout(() => myData.isFiring = false, 200);
+
+            if(myAmmo === 0) manualReload();
+        }
+
+        function update() {
+            if(gameOver) return; // Oyun bittiyse güncelleme yapılmaz
+
+            let dx = 0, dy = 0;
+            if(keys['w'] || keys['arrowup']) dy -= 1;
+            if(keys['s'] || keys['arrowdown']) dy += 1;
+            if(keys['a'] || keys['arrowleft']) dx -= 1;
+            if(keys['d'] || keys['arrowright']) dx += 1;
+            
+            if(joystick.active) { dx = joystick.moveX; dy = joystick.moveY; }
+
+            if(!checkWall(myData.x + dx*speed, myData.y + dy*speed)) {
+                myData.x += dx * speed;
+                myData.y += dy * speed;
+            }
+            myData.isMoving = (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1);
+
+            if(radarTimer > 0) radarTimer--;
+
+            // Power-Up Toplama
+            if(activePowerUp) {
+                let p = activePowerUp;
+                if(myData.x > p.x - 20 && myData.x < p.x + p.w + 20 && myData.y > p.y - 20 && myData.y < p.y + p.h + 20) {
+                    if(p.type === 'heal') {
+                        if(myData.hp < 3) myData.hp++;
+                        addExplosion(myData.x, myData.y, "#00ff66", 20);
+                        addFloatText("+1 HP!", myData.x, myData.y - 20, "#00ff66");
+                    } else if(p.type === 'radar') {
+                        radarTimer = 180;
+                        addExplosion(myData.x, myData.y, "#ffff00", 25);
+                        addFloatText("📡 RADAR!", myData.x, myData.y - 20, "#ffff00");
+                    }
+                    activePowerUp = null;
+                    if(conn && conn.open) conn.send({ type: "powerup_take" });
+                    if(isHost) schedulePowerUpSpawn();
+                }
+            }
+
+            // Canavar Hareketleri ve Temas (Host Yönetir)
+            if(isHost) {
+                monsters.forEach((m, index) => {
+                    m.x += m.vx; m.y += m.vy;
+                    m.pulse += 0.05;
+                    if(checkWall(m.x, m.y)) { m.vx *= -1; m.vy *= -1; }
+
+                    if(Math.hypot(myData.x - m.x, myData.y - m.y) < 25) {
+                        myData.hp -= 2;
+                        addExplosion(m.x, m.y, "#ff0055", 30);
+                        conn.send({ type: "fx_explosion", x: m.x, y: m.y, color: "#ff0055", count: 30 });
+                        monsters.splice(index, 1);
+                        if(myData.hp <= 0) { 
+                            peerScore++; 
+                            if(!checkMatchEnd()) resetRound(); 
+                        }
+                    } else if(Math.hypot(peerData.x - m.x, peerData.y - m.y) < 25) {
+                        conn.send({ type: "take_damage", amount: 2 });
+                        addExplosion(m.x, m.y, "#ff0055", 30);
+                        conn.send({ type: "fx_explosion", x: m.x, y: m.y, color: "#ff0055", count: 30 });
+                        monsters.splice(index, 1);
+                    }
+                });
+
+                if(conn && conn.open) conn.send({ type: "monsters_update", monsters });
+            }
+
+            // Mermiler ve Canavar Vurma
+            for (let i = myBullets.length - 1; i >= 0; i--) {
+                let b = myBullets[i];
+                b.x += b.vx; b.y += b.vy; b.life--;
+
+                let bulletRemoved = false;
+
+                for(let j = monsters.length - 1; j >= 0; j--) {
+                    let m = monsters[j];
+                    if(Math.hypot(b.x - m.x, b.y - m.y) < 22) {
+                        addExplosion(m.x, m.y, "#ff9900", 25);
+                        let killedId = m.id;
+                        monsters.splice(j, 1);
+                        myBullets.splice(i, 1);
+                        bulletRemoved = true;
+
+                        if(conn && conn.open) {
+                            conn.send({ type: "kill_monster", monsterId: killedId, x: m.x, y: m.y });
+                            if(isHost) conn.send({ type: "monsters_update", monsters });
+                        }
+                        break;
+                    }
+                }
+
+                if(bulletRemoved) continue;
+
+                if(checkWall(b.x, b.y)) myBullets.splice(i, 1);
+                else if(Math.hypot(b.x - peerData.x, b.y - peerData.y) < 20) {
+                    conn.send({type: "take_damage", amount: 1 }); 
+                    addExplosion(peerData.x, peerData.y, "#ff0000", 15);
+                    myBullets.splice(i, 1);
+                } else if(b.life <= 0) myBullets.splice(i, 1);
+            }
+
+            particles.forEach((p, index) => {
+                p.x += p.vx; p.y += p.vy; p.life--;
+                if(p.life <= 0) particles.splice(index, 1);
+            });
+
+            floatTexts.forEach((t, index) => {
+                t.y += t.vy; t.life--;
+                if(t.life <= 0) floatTexts.splice(index, 1);
+            });
+
+            document.getElementById('my-hp').innerText = myData.hp;
+            document.getElementById('peer-hp').innerText = peerData.hp;
+            document.getElementById('my-score').innerText = myScore;
+            document.getElementById('peer-score').innerText = peerScore;
+
+            if(conn && conn.open) conn.send({...myData, bullets: myBullets});
+        }
+
+        function checkWall(nx, ny) {
+            if(nx < 15 || nx > VIRTUAL_WIDTH - 15 || ny < 15 || ny > PLAY_AREA_HEIGHT - 15) return true;
+            for(let w of walls) if(nx+15>w.x && nx-15<w.x+w.w && ny+15>w.y && ny-15<w.y+w.h) return true;
+            return false;
+        }
+
+        function draw() {
+            ctx.fillStyle = "#111"; ctx.fillRect(0, 0, VIRTUAL_WIDTH, PLAY_AREA_HEIGHT);
+            
+            // Çalılar
+            ctx.fillStyle = "rgba(0, 120, 0, 0.45)";
+            bushes.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+            // Duvarlar
+            walls.forEach(w => {
+                ctx.fillStyle = "#3d3d3d"; ctx.fillRect(w.x, w.y, w.w, w.h);
+                ctx.strokeStyle = "#666"; ctx.lineWidth = 3; ctx.strokeRect(w.x, w.y, w.w, w.h);
+            });
+
+            // Canavarlar
+            monsters.forEach(m => {
+                let size = 16 + Math.sin(m.pulse) * 3;
+                ctx.beginPath(); ctx.arc(m.x, m.y, size, 0, Math.PI * 2);
+                ctx.fillStyle = "#ff0055"; ctx.fill();
+                ctx.strokeStyle = "#ff9900"; ctx.lineWidth = 3; ctx.stroke();
+                ctx.beginPath(); ctx.arc(m.x, m.y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = "black"; ctx.fill();
+            });
+
+            // KARE POWER-UP ÇİZİMİ
+            if(activePowerUp) {
+                let p = activePowerUp;
+                ctx.fillStyle = p.type === 'heal' ? '#00ff66' : '#ffff00';
+                ctx.fillRect(p.x - 13, p.y - 13, 26, 26);
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+                ctx.strokeRect(p.x - 13, p.y - 13, 26, 26);
+
+                ctx.fillStyle = "black";
+                ctx.font = "bold 14px sans-serif";
+                ctx.fillText(p.type === 'heal' ? '+' : '📡', p.x - 5, p.y + 5);
+            }
+
+            // Mermiler
+            ctx.fillStyle = "#0f0"; myBullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 7); ctx.fill(); });
+            ctx.fillStyle = "#f00"; if(peerData.bullets) peerData.bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 7); ctx.fill(); });
+
+            // Kendi Karakterin
+            ctx.globalAlpha = 0.6; ctx.fillStyle = "cyan";
+            ctx.beginPath(); ctx.arc(myData.x, myData.y, 15, 0, 7); ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // Rakip (Görünmezlik & Radar)
+            let inBush = false;
+            for(let b of bushes) if(peerData.x > b.x && peerData.x < b.x+b.w && peerData.y > b.y && peerData.y < b.y+b.h) inBush = true;
+            
+            if(radarTimer > 0 || peerData.isFiring) ctx.globalAlpha = 1.0;
+            else if(inBush) ctx.globalAlpha = 0;
+            else if(peerData.isMoving) ctx.globalAlpha = 0.08;
+            else ctx.globalAlpha = 0;
+
+            ctx.fillStyle = "red"; ctx.beginPath(); ctx.arc(peerData.x, peerData.y, 15, 0, 7); ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // Efekt Parçacıkları Çizimi
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life / p.maxLife;
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            // Yüzen Yazılar
+            floatTexts.forEach(t => {
+                ctx.globalAlpha = t.life / 40;
+                ctx.fillStyle = t.color;
+                ctx.font = "bold 18px sans-serif";
+                ctx.fillText(t.text, t.x - 15, t.y);
+            });
+            ctx.globalAlpha = 1.0;
+
+            // Radar Göstergesi
+            if(radarTimer > 0) {
+                ctx.fillStyle = "#ffff00";
+                ctx.font = "bold 16px sans-serif";
+                ctx.fillText("📡 RADAR AKTİF!", 20, 40);
+            }
+
+            // Alt Kontrol Paneli
+            ctx.fillStyle = "#080808"; ctx.fillRect(0, PLAY_AREA_HEIGHT, VIRTUAL_WIDTH, TOTAL_HEIGHT - PLAY_AREA_HEIGHT);
+            ctx.strokeStyle = "#333"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(0, PLAY_AREA_HEIGHT); ctx.lineTo(VIRTUAL_WIDTH, PLAY_AREA_HEIGHT); ctx.stroke();
+
+            ctx.strokeStyle = "#444"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(JOYSTICK_BASE.x, JOYSTICK_BASE.y, JOYSTICK_BASE.radius, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = joystick.active ? "rgba(0, 251, 255, 0.7)" : "rgba(255, 255, 255, 0.3)";
+            ctx.beginPath(); ctx.arc(joystick.curX, joystick.curY, 22, 0, Math.PI * 2); ctx.fill();
+
+            // OYUN BİTTİ EKRANI (GAME OVER OVERLAY)
+            if(gameOver) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                ctx.fillRect(0, 0, VIRTUAL_WIDTH, TOTAL_HEIGHT);
+
+                ctx.fillStyle = gameResultColor;
+                ctx.font = "bold 56px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(gameResultText, VIRTUAL_WIDTH / 2, TOTAL_HEIGHT / 2 - 20);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "20px sans-serif";
+                ctx.fillText(`Son Skor: Sen ${myScore} - ${peerScore} Rakip`, VIRTUAL_WIDTH / 2, TOTAL_HEIGHT / 2 + 30);
+
+                ctx.fillStyle = "#ffcc00";
+                ctx.font = "16px sans-serif";
+                ctx.fillText("Yeniden oynamak için yukarıdan yeni bir odaya katılın.", VIRTUAL_WIDTH / 2, TOTAL_HEIGHT / 2 + 80);
+                
+                ctx.textAlign = "start"; // Hizalamayı sıfırla
+            }
+
+            update(); requestAnimationFrame(draw);
+        }
+        draw();
+    </script>
+</body>
+</html>
