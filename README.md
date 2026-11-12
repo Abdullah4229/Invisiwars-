@@ -1,72 +1,59 @@
-# Invisiwars-
-Abdullah'ın Oyunu (AI Oyunum) 🎮
+# 🎮 Abdullah'ın Oyunu (AI Oyunum)
 
 Bu proje, yapay zeka araçları desteğiyle geliştirilmiş keyifli ve etkileşimli bir web tabanlı oyundur.
 
-📝 Proje Hakkında
+---
 
-Abdullah'ın Oyunu, tarayıcı üzerinden kolayca oynanabilen, basit mekaniklere sahip ancak ustalaşması eğlenceli bir HTML5 oyun projesidir. Temel amacı, oyunculara akıcı bir oyun deneyimi sunarken, aynı zamanda web tabanlı oyun geliştirme süreçlerini (HTML, CSS ve JavaScript) pratik etmektir.
+## 📝 Proje Hakkında
 
-Oyunun oynanabilir sürümüne ve diğer detaylara buradan ulaşabilirsiniz.
+**Abdullah'ın Oyunu**, tarayıcı üzerinden kolayca oynanabilen, basit mekaniklere sahip ancak ustalaşması eğlenceli bir **HTML5** oyun projesidir. 
 
-✨ Özellikler
+Oyunun temel amacı, oyunculara akıcı bir deneyim sunarken, web tabanlı oyun geliştirme süreçlerini pratik etmektir. Oyunun oynanabilir sürümüne [buraya tıklayarak](https://sites.google.com/view/ai-oyunum) ulaşabilirsiniz.
 
-Tarayıcı Tabanlı: Kurulum gerektirmez, doğrudan web tarayıcısında çalışır.
+---
 
-Akıcı Dinamikler: Hızlı ve tepkisel oyun mekanikleri.
+## ✨ Özellikler
 
-Responsive Tasarım: Farklı ekran boyutlarına uyum sağlayacak şekilde tasarlanmıştır.
+* **🌐 Tarayıcı Tabanlı:** Herhangi bir kurulum gerektirmez, doğrudan web tarayıcısında çalışır.
+* **⚡ Akıcı Dinamikler:** Hızlı ve tepkisel oyun mekaniklerine sahiptir.
+* **📱 Responsive Tasarım:** Farklı ekran boyutlarına uyum sağlayacak şekilde tasarlanmıştır.
+* **🧩 Temiz Kod Mimarisi:** Geliştirmeye açık, düzenli kod yapısı ("Yeni Kod" versiyonu).
 
-Temiz Kod Mimarisi: Geliştirmeye ve yeni özellikler eklemeye açık kod yapısı ("Yeni Kod" versiyonu).
+---
 
-🚀 Nasıl Oynanır?
+## 🚀 Nasıl Oynanır?
 
-(Oyunun mekaniklerine göre bu kısmı güncelleyebilirsin)
+Oyun içi kontroller şu şekildedir:
 
-Yönlendirme: Klavyedeki Ok Tuşları (Yön Tuşları) veya W, A, S, D tuşlarını kullanarak karakterinizi/objenizi yönlendirin.
+* **Yönlendirme:** Klavyedeki **Ok Tuşları** (⬅️ ⬆️ ⬇️ ➡️) veya **W, A, S, D** tuşlarını kullanarak karakterinizi yönlendirin.
+* **Aksiyon:** **Boşluk (Space)** tuşu ile temel aksiyonları gerçekleştirin.
+* **Hedef:** Engellere çarpmadan **en yüksek skoru** elde etmeye çalışın!
 
-Aksiyon: Boşluk (Space) tuşu ile temel aksiyonları gerçekleştirin.
+---
 
-Amaç: Engellere çarpmadan en yüksek skoru elde etmeye çalışın.
+## 🛠️ Kurulum ve Çalıştırma
 
-🛠️ Kurulum ve Çalıştırma
+Projeyi kendi bilgisayarınızda çalıştırmak isterseniz şu adımları izleyebilirsiniz:
 
-Projeyi yerel makinenizde (kendi bilgisayarınızda) çalıştırmak için aşağıdaki adımları izleyin:
+1. **Bu depoyu klonlayın:**
+   ```bash
+   git clone https://github.com/KULLANICI_ADIN/ai-oyunum.git
+   ```
 
-Bu depoyu klonlayın:
+2. **Proje klasörüne girin:**
+   ```bash
+   cd ai-oyunum
+   ```
 
-git clone https://github.com/KULLANICI_ADIN/ai-oyunum.git
+3. **Çalıştırın:**
+   Klasör içindeki `index.html` dosyasını favori web tarayıcınızda (Chrome, Firefox, Safari vb.) açın. *(Alternatif olarak VS Code üzerinde 'Live Server' eklentisi ile başlatabilirsiniz.)*
 
+---
 
-Proje dizinine gidin:
+## 💻 Kullanılan Teknolojiler
 
-cd ai-oyunum
+Bu oyun tamamen temel web teknolojileri kullanılarak geliştirilmiştir:
 
-
-Klasör içindeki index.html dosyasını favori web tarayıcınızda (Chrome, Firefox, Safari vb.) açın veya bir Live Server eklentisi kullanarak çalıştırın.
-
-💻 Kullanılan Teknolojiler
-
-HTML5: Sayfa iskeleti ve Canvas (Çizim alanı) için.
-
-CSS3: Tasarım ve stil ayarlamaları için.
-
-JavaScript (Vanilla JS): Oyun döngüsü (game loop), fizik motoru, yapay zeka mantığı ve kullanıcı etkileşimleri için.
-
-🤝 Katkıda Bulunma
-
-Bu proje geliştirmeye açıktır! Eğer yeni bir özellik eklemek veya bir hatayı düzeltmek isterseniz:
-
-Depoyu forklayın.
-
-Yeni bir dal (branch) oluşturun: git checkout -b yeni-ozellik
-
-Değişikliklerinizi commit edin: git commit -m 'Yeni özellik eklendi'
-
-Dalınıza push yapın: git push origin yeni-ozellik
-
-Bir Pull Request oluşturun.
-
-📜 Lisans
-
-Bu proje MIT Lisansı altında lisanslanmıştır. Dilediğiniz gibi kullanabilir ve geliştirebilirsiniz.
+* **HTML5:** Sayfa iskeleti ve oyunun çizildiği alan (Canvas).
+* **CSS3:** Sayfa tasarımı ve görsel stil ayarlamaları.
+* **JavaScript (ES6):** Oyun döngüsü, fizik motoru, yapay zeka mantığı ve kullanıcı etkileşimleri.
