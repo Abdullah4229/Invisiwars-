@@ -1,16 +1,12 @@
-# 🎮 Abdullah'ın Oyunu (AI Oyunum)
+# 🎮 Invisiwars (AI Oyunum)
 
 Bu proje, yapay zeka araçları desteğiyle geliştirilmiş keyifli ve etkileşimli bir web tabanlı oyundur.
 
----
+▶️ **Canlı Test:** Oyunu [bu linkten (Google Sites)](https://sites.google.com/view/ai-oyunum/yeni-kod) doğrudan test edebilirsiniz.
 
 ## 📝 Proje Hakkında
 
-**Abdullah'ın Oyunu**, tarayıcı üzerinden kolayca oynanabilen, basit mekaniklere sahip ancak ustalaşması eğlenceli bir **HTML5** oyun projesidir. 
-
-Oyunun temel amacı, oyunculara akıcı bir deneyim sunarken, web tabanlı oyun geliştirme süreçlerini pratik etmektir. Oyunun oynanabilir sürümüne [buraya tıklayarak](https://sites.google.com/view/ai-oyunum) ulaşabilirsiniz.
-
----
+Invisiwars, tarayıcı üzerinden kolayca oynanabilen, basit mekaniklere sahip ancak ustalaşması eğlenceli bir HTML5 oyun projesidir. Amacı, oyunculara akıcı bir deneyim sunarken web tabanlı oyun geliştirme süreçlerini pratik etmektir.
 
 ## ✨ Özellikler
 
@@ -19,41 +15,30 @@ Oyunun temel amacı, oyunculara akıcı bir deneyim sunarken, web tabanlı oyun 
 * **📱 Responsive Tasarım:** Farklı ekran boyutlarına uyum sağlayacak şekilde tasarlanmıştır.
 * **🧩 Temiz Kod Mimarisi:** Geliştirmeye açık, düzenli kod yapısı ("Yeni Kod" versiyonu).
 
----
-
 ## 🚀 Nasıl Oynanır?
 
 Oyun içi kontroller şu şekildedir:
-
-* **Yönlendirme:** Klavyedeki **Ok Tuşları** (⬅️ ⬆️ ⬇️ ➡️) veya **W, A, S, D** tuşlarını kullanarak karakterinizi yönlendirin.
-* **Aksiyon:** **Boşluk (Space)** tuşu ile temel aksiyonları gerçekleştirin.
-* **Hedef:** Engellere çarpmadan **en yüksek skoru** elde etmeye çalışın!
-
----
+* **Yönlendirme:** Klavyedeki Ok Tuşları (⬅️ ⬆️ ⬇️ ➡️) veya W, A, S, D tuşlarını kullanarak karakterinizi yönlendirin.
+* **Aksiyon:** Boşluk (Space) tuşu ile temel aksiyonları gerçekleştirin.
+* **Hedef:** Engellere çarpmadan en yüksek skoru elde etmeye çalışın!
 
 ## 🛠️ Kurulum ve Çalıştırma
 
 Projeyi kendi bilgisayarınızda çalıştırmak isterseniz şu adımları izleyebilirsiniz:
 
-1. **Bu depoyu klonlayın:**
+1. Bu depoyu klonlayın:
    ```bash
-   git clone https://github.com/KULLANICI_ADIN/ai-oyunum.git
+   git clone https://github.com/Abdullah4229/Invisiwars-.git
    ```
-
-2. **Proje klasörüne girin:**
+2. Proje klasörüne girin:
    ```bash
-   cd ai-oyunum
+   cd Invisiwars-
    ```
-
-3. **Çalıştırın:**
-   Klasör içindeki `index.html` dosyasını favori web tarayıcınızda (Chrome, Firefox, Safari vb.) açın. *(Alternatif olarak VS Code üzerinde 'Live Server' eklentisi ile başlatabilirsiniz.)*
-
----
+3. Çalıştırın: Klasör içindeki `ivisiwars_version_new.html` dosyasını favori web tarayıcınızda (Chrome, Firefox, Safari vb.) çift tıklayarak açın. *(Alternatif olarak VS Code üzerinde 'Live Server' eklentisi ile başlatabilirsiniz.)*
 
 ## 💻 Kullanılan Teknolojiler
 
 Bu oyun tamamen temel web teknolojileri kullanılarak geliştirilmiştir:
-
 * **HTML5:** Sayfa iskeleti ve oyunun çizildiği alan (Canvas).
 * **CSS3:** Sayfa tasarımı ve görsel stil ayarlamaları.
 * **JavaScript (ES6):** Oyun döngüsü, fizik motoru, yapay zeka mantığı ve kullanıcı etkileşimleri.
